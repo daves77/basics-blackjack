@@ -97,16 +97,27 @@ const dealCards = () => {
 }
 
 const calculateCardsValue = cards => {
-    var totalValue = 0
+    // arrange cards in hand such that "A" is set to the back
     cards.forEach(card => {
-        var value = card.value
-        //handle ace logic
-        //TODO: when to give 1 or 11 for aces
         if (card.card === 'A') {
-            value = 11
+            cards.push(cards.splice(cards.indexOf(card), 1)[0])
         }
-        totalValue += value
     })
+
+
+    const totalValue = cards.reduce((value, card) => {
+        if (card.card === "A"){
+            if ((value + 11)> 21){
+                value += 1
+            } else {
+                value += 11
+            }
+        } else {
+            value += card.value
+        }
+        return value
+    }, 0 )
+
     return totalValue
 }
 
@@ -340,8 +351,8 @@ const main = input => {
 
 // TODO:
 // 3. error handling, e.g. if player type commands they're not supposed to
-// 4. betting
+// 4. betting 
 // 5. splitting
-// 6. ace logic
 // 8. standing after last player causes an error
 // 9. improve on instructions for each view
+// 10. error doesnt redirect player when player gets black jack
