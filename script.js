@@ -1,12 +1,20 @@
 //GLOBALS
 let deck = []
-let dealer = { name: 'dealer', cards: [], value: 0, win: false, bust: false }
+let dealer = { name: 'dealer', cards: [], value: 0, status: null, bust: false }
 let players = [
-    { name: 'player1', cards: [], value: 0, win: false, bust: false },
-    { name: 'player2', cards: [], value: 0, win: false, bust: false },
+    { name: 'player1', cards: [], value: 0, status: null, bust: false },
+    { name: 'player2', cards: [], value: 0, status: null, bust: false },
 ]
+
 let playerTurn = null
-let mode = 'START_GAME'
+
+const MODE_DEALER_TURN = 'DEALER_TURN'
+const MODE_PLAYERS_TURN = 'PLAYERS_TURN'
+const MODE_START_GAME = 'START_GAME'
+const MODE_SETUP_PLAYERS = 'SETUP_PLAYERS'
+const MODE_PLAYERS_BET = 'SETUP_PLAYERS_BET'
+
+let mode = MODE_START_GAME
 
 let currentPlayer = null
 let currentPlayerIndex = 0
@@ -113,13 +121,12 @@ const checkIfBlackjack = () => {
     )
     playersExcludingDealer.forEach(player => {
         if (player.value === 21) {
-            player.win = true
+            player.status = 'win'
         }
     })
 
     if (dealer.value === 21) {
-        dealer.win = true
-        // end game
+        dealer.status = 'win'
         return generateEndGameView()
     }
 }
@@ -141,8 +148,6 @@ const hit = player => {
     }
 
     return player.value
-    //if player hand value > 21, they should not be able to take anymore
-    //cards
 }
 
 const moveToNextPlayer = () => {
@@ -157,7 +162,7 @@ const dealerTurn = () => {
         hit(dealer)
     }
     if (dealer.value > 21) {
-        dealer.win = false
+        dealer.status = 'lose'
         dealer.bust = true
     }
 }
@@ -165,7 +170,11 @@ const dealerTurn = () => {
 const dealerHandHTML = () => {
     return (dealerHand = dealer.cards
         .map(card => card.card + card.suit)
-        .reduce((string, card) => {
+        .reduce((string, card, index) => {
+            // hides the dealer's second card until the end of the game
+            if (mode !== MODE_DEALER_TURN) {
+                card = index === 1 ? '?' : card
+            }
             string += '<div class="card">' + card + '</div>'
             return string
         }, ''))
@@ -189,6 +198,7 @@ const generatePlayingView = (player, input) => {
     //TO DO add instructions
     return (
         "<div class='output-container'>" +
+        `<h1>${player.name} turn </h1>` +
         playerMove +
         '<br>' +
         'Dealer Hand ' +
@@ -200,7 +210,9 @@ const generatePlayingView = (player, input) => {
         '<div class="hand">' +
         playerHand +
         '</div>' +
+        `Current Value :${player.value}` +
         '<br>' +
+        '<p>You can choose to either <strong>"stand" or "hit" </strong>! Enter your selection at the input form above & click submit!</p>' +
         '</div>'
     )
 }
@@ -223,37 +235,55 @@ const generateActionSummaryView = (player, input) => {
         '</div>' +
         '<br>' +
         `moving to ${nextPlayer.name}` +
-        'click on submit to start playing' +
+        '<br>' +
+        'Click on "submit" to start playing' +
         '</div>'
     )
 }
 
 const generateEndGameView = () => {
-    const dealerHand = dealerHandHTML()
+    const dealerHand = dealerHandHTML(false)
 
     //remove dealer from players and create html version of player's hands
     players = players.splice(0, players.length - 1)
+
+    // checks if player wins or loses
+    players
+        // filters out players that have already won e.g through blackjack
+        .filter(player => player.status !== 'win')
+        .map(player => {
+            // first check if dealer is bust
+            if (dealer.bust) {
+                if (!player.bust) {
+                    player.status = 'win'
+                } else {
+                    player.status = 'push'
+                }
+            } else {
+                if (!player.bust) {
+                    if (player.value > dealer.value) {
+                        player.status = 'win'
+                    } else if (player.value < dealer.value) {
+                        player.status = 'lose'
+                    } else {
+                        player.status = 'push'
+                    }
+                }
+            }
+        })
     const playersHands = players.reduce((string, player) => {
         const playerHand = playerHandHTML(player)
 
         string +=
-            `${player.name} Hand` + '<div class="hand">' + playerHand + `${player.win}` +'</div>'
+            `${player.name} Hand` +
+            '<div class="hand">' +
+            playerHand +
+            `${player.status}` +
+            '</div>'
         return string
     }, '')
 
-    // player win or lose
-    players.map(player => {
-        // if player alr lost , ignore
-        if (!player.bust) {
-            if (!dealer.bust && dealer.value > player.value) {
-                player.win = false
-            }
-        } else {
-            // can be refactored
-            players.win = true
-        }
-        
-    })
+    //filter players that havent won yet
 
     return (
         '<div class="output-container">' +
@@ -269,8 +299,9 @@ const generateEndGameView = () => {
         '</div>'
     )
 }
+
 const main = input => {
-    if (mode === 'START_GAME') {
+    if (mode === MODE_START_GAME) {
         deck = shuffleDeck(createDeck())
         dealCards()
         // check if blackjack, if dealer blackjack game ends,
@@ -278,9 +309,9 @@ const main = input => {
 
         currentPlayer = players[currentPlayerIndex]
 
-        mode = 'PLAYERS_TURN'
+        mode = MODE_PLAYERS_TURN
         return generatePlayingView(currentPlayer)
-    } else if (mode === 'PLAYERS_TURN') {
+    } else if (mode === MODE_PLAYERS_TURN) {
         if (input === 'hit') {
             // check if player can hit
             const playerHandValue = hit(currentPlayer)
@@ -297,22 +328,20 @@ const main = input => {
         // if last player, play the dealer's hand and generate a win lose report
         if (currentPlayerIndex === players.length - 1) {
             //show dealer hand first & change mode to dealer turn
-            mode = 'DEALERS_TURN'
+            mode = MODE_DEALER_TURN
             return '<div>all players have played click submit to see a summary of the game</div>'
         }
         return generatePlayingView(currentPlayer, input)
-    } else if (mode === 'DEALERS_TURN') {
+    } else if (mode === MODE_DEALER_TURN) {
         dealerTurn()
         return generateEndGameView()
     }
 }
 
 // TODO:
-// 1. players dont have to type anything if they go bust or hit 21 DONE
-// 2. card ui
 // 3. error handling, e.g. if player type commands they're not supposed to
 // 4. betting
 // 5. splitting
 // 6. ace logic
-// 7. hide dealer hand inital
 // 8. standing after last player causes an error
+// 9. improve on instructions for each view
