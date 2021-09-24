@@ -330,7 +330,7 @@ const generateEndGameView = () => {
     return (
         '<div class="output-container">' +
         '<br>' +
-        'Dealer's hand' +
+        'Dealer\'s hand' +
         '<div class="hand">' +
         dealerHand +
         '</div>' +
