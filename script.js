@@ -240,7 +240,7 @@ const generateActionSummaryView = (player, input) => {
 
     const playerHand = playerHandHTML(player)
 
-    const bust = input === 'hit' ? `${player.name} has gone bust` : ''
+    const bust = player.value > 21 ? `${player.name} has gone bust` : ''
 
     const nextPlayerMessage = nextPlayer
         ? `Moving to ${nextPlayer.name}` +
@@ -267,7 +267,7 @@ const generateActionSummaryView = (player, input) => {
 const generateEndGameView = () => {
     dealerTurn()
     const dealerHand = dealerHandHTML(false)
-
+    const dealerValue = dealer.value
     //remove dealer from players and create html version of player's hands
     players = players.splice(0, players.length - 1)
 
@@ -311,14 +311,16 @@ const generateEndGameView = () => {
         const playerHand = playerHandHTML(player)
 
         string +=
+            '<div style="margin-bottom:10px">'+
             `${player.name} Hand` +
             '<div class="hand">' +
             playerHand +
             '</div>' +
-            `${player.status}` +
+            `Game outcome: ${player.status}` +
             '<br>' +
             `${player.name} current points: ${player.points}` +
-            '</br>'
+            '</br>' +
+            '</div>'
         return string
     }, '')
 
@@ -328,14 +330,14 @@ const generateEndGameView = () => {
     return (
         '<div class="output-container">' +
         '<br>' +
-        'dealer hand' +
+        'Dealer's hand' +
         '<div class="hand">' +
         dealerHand +
         '</div>' +
         '<br>' +
-        `Dealer Hand Value: ${dealer.value}` +
+        `Dealer Hand Value: ${dealerValue}` +
         '<br>' +
-        '<div>' +
+        '<div style="margin-top:10px">' +
         playersHands +
         '</div>' +
         'Click on "submit" to continue to the next game' +
