@@ -215,6 +215,7 @@ const generatePlayingView = (player, input) => {
         '<div class="hand">' +
         dealerHand +
         '</div>' +
+        `Dealer Hand Value: ${dealer.value}` +
         '<br>' +
         `${player.name} hand` +
         '<div class="hand">' +
@@ -231,27 +232,40 @@ const generateActionSummaryView = (player, input) => {
     // this view is shown the player once they have decided
     // to stand or have gone bust. it summarises the cards they have
 
-    const nextPlayer = moveToNextPlayer()
+    let nextPlayer = moveToNextPlayer()
+    console.log(currentPlayerIndex, players.length - 2)
+    if (currentPlayerIndex === players.length - 1) {
+        nextPlayer = null
+    }
 
     const playerHand = playerHandHTML(player)
+
+    const bust = input === 'hit' ? `${player.name} has gone bust` : ''
+
+    const nextPlayerMessage = nextPlayer
+        ? `Moving to ${nextPlayer.name}` +
+          '<br>' +
+          'Click on "submit" to start playing'
+        : 'All players have played. Click "submit" to show the dealer\'s cards'
 
     return (
         '<div class="output-container">' +
         `${player.name} has decided to ${input}` +
         '<br>' +
+        bust +
+        '<br stlye="margin-bottom:10px">' +
         `${player.name} hand` +
         '<div class="hand">' +
         playerHand +
         '</div>' +
         '<br>' +
-        `moving to ${nextPlayer.name}` +
-        '<br>' +
-        'Click on "submit" to start playing' +
+        nextPlayerMessage +
         '</div>'
     )
 }
 
 const generateEndGameView = () => {
+    dealerTurn()
     const dealerHand = dealerHandHTML(false)
 
     //remove dealer from players and create html version of player's hands
@@ -278,9 +292,21 @@ const generateEndGameView = () => {
                     } else {
                         player.status = 'push'
                     }
+                } else {
+                    player.status = 'lose'
                 }
             }
         })
+
+    //distribute points to player according to their game status
+    players.map(player => {
+        if (player.status === 'win') {
+            player.points += player.bet
+        } else if (player.status === 'lose') {
+            player.points -= player.bet
+        }
+    })
+
     const playersHands = players.reduce((string, player) => {
         const playerHand = playerHandHTML(player)
 
@@ -288,12 +314,16 @@ const generateEndGameView = () => {
             `${player.name} Hand` +
             '<div class="hand">' +
             playerHand +
+            '</div>' +
             `${player.status}` +
-            '</div>'
+            '<br>' +
+            `${player.name} current points: ${player.points}` +
+            '</br>'
         return string
     }, '')
 
-    //filter players that havent won yet
+    resetAllHands()
+    mode = MODE_PLAYERS_BET
 
     return (
         '<div class="output-container">' +
@@ -303,19 +333,39 @@ const generateEndGameView = () => {
         dealerHand +
         '</div>' +
         '<br>' +
+        `Dealer Hand Value: ${dealer.value}` +
+        '<br>' +
         '<div>' +
         playersHands +
         '</div>' +
+        'Click on "submit" to continue to the next game' +
         '</div>'
     )
 }
 
+const resetAllHands = () => {
+    currentPlayerIndex = 0
+    dealer.status = null
+    dealer.cards = []
+    dealer.value = 0
+    dealer.bust =false
+    players.map(player => {
+        player.status = null
+        player.cards = []
+        player.bust = false
+        player.value = 0
+        player.bet = 0
+        return player
+    })
+}
+
 const managePlayerBets = input => {
     const bet = Number(input)
-    if (!input || isNaN(bet) || bet < 1) {
-        return 'Please enter a valid number for the bet'
-    }
     const bettingPlayer = players[filledPlayerProfile]
+
+    if (!input || isNaN(bet) || bet < 1) {
+        return `Please enter a valid number for ${bettingPlayer.name} bet`
+    }
     if (bet > bettingPlayer.points) {
         return `You dont have enough points to bet. Please bet an amount below ${bettingPlayer.points}`
     }
@@ -325,14 +375,17 @@ const managePlayerBets = input => {
         filledPlayerProfile += 1
 
         if (filledPlayerProfile === numberOfPlayers) {
+            filledPlayerProfile = 0
             mode = MODE_START_GAME
-            const text = players.reduce((text, player) => {
+            let text = players.reduce((text, player) => {
                 text += `<p>${player.name} has bet ${player.bet} points<p>`
                 return text
             }, '')
+
+            text += '<p>Click on "submit" to deal the cards! '
             return text
         } else {
-            return `${bettingPlayer.name} has bet ${bettingPlayer.bet} points! Enter your bet ${players[filledPlayerProfile].name}`
+            return `${bettingPlayer.name} has bet ${bettingPlayer.bet} points! Enter your bet ${players[filledPlayerProfile].name}, you have ${players[filledPlayerProfile].points} points`
         }
     }
 }
@@ -372,7 +425,7 @@ const setupPlayerName = input => {
         if (filledPlayerProfile === numberOfPlayers) {
             filledPlayerProfile = 0
             mode = MODE_PLAYERS_BET
-            return `Enter your bet ${players[filledPlayerProfile].name}`
+            return `Enter your bet ${players[filledPlayerProfile].name}, you have ${players[filledPlayerProfile].points} points!`
         } else {
             return `<div> Enter a name for Player ${filledPlayerProfile + 1}`
         }
@@ -397,13 +450,9 @@ const handlePlayerTurn = input => {
     if (currentPlayerIndex === players.length - 1) {
         //show dealer hand first & change mode to dealer turn
         mode = MODE_DEALER_TURN
-        return '<div>all players have played click submit to see a summary of the game</div>'
+        return generateEndGameView()
     }
     return generatePlayingView(currentPlayer, input)
-}
-
-const payoutPlayers = ( ) => {
-    
 }
 
 const main = input => {
@@ -420,19 +469,12 @@ const main = input => {
         checkIfBlackjack()
         currentPlayer = players[currentPlayerIndex]
         mode = MODE_PLAYERS_TURN
+
+        if (currentPlayer.status === 'win') {
+            generateActionSummaryView(currentPlayer)
+        }
         return generatePlayingView(currentPlayer)
     } else if (mode === MODE_PLAYERS_TURN) {
         return handlePlayerTurn(input)
-    } else if (mode === MODE_DEALER_TURN) {
-        dealerTurn()
-        return generateEndGameView()
     }
 }
-
-// TODO:
-// 3. error handling, e.g. if player type commands they're not supposed to
-// 4. betting
-// 5. splitting
-// 8. standing after last player causes an error
-// 9. improve on instructions for each view
-// 10. error doesnt redirect player when player gets black jack
